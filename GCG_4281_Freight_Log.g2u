@@ -1,0 +1,231 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Size(5235,2205)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MousePointer(0)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form..Caption("Freight Log")
+Gui.Form.dtpEndDate.Create(DatePicker)
+Gui.Form.dtpEndDate.Size(1935,285)
+Gui.Form.dtpEndDate.Position(2595,645)
+Gui.Form.lblBegDate.Create(Label,"Beginning Date",True,1395,255,0,165,330,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lblEndDate.Create(Label,"Ending Date",True,1395,255,0,2595,330,True,0,"Arial",8,-2147483633,0)
+Gui.Form.dtpBegDate.Create(DatePicker)
+Gui.Form.dtpBegDate.Size(1935,285)
+Gui.Form.dtpBegDate.Position(165,660)
+Gui.Form.cmdSave.Create(Button)
+Gui.Form.cmdSave.Size(1410,375)
+Gui.Form.cmdSave.Position(1665,1155)
+Gui.Form.cmdSave.Caption("Create Report")
+Gui.Form.cmdSave.Event(Click,cmdSave_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+F.Intrinsic.Control.SetErrorHandler("Main_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+'to be run from custom menu item: Order Entry - Reports - FREIGHT LOG 
+V.Local.dDate.Declare(Date)
+F.ODBC.Connection!con.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass, 10000000)
+F.Intrinsic.Date.DateAdd("D", -1, V.Ambient.Date, V.Local.dDate)
+GUI.Form.dtpBegDate.Value(V.Local.dDate)
+GUI.Form.dtpEndDate.Value(V.Local.dDate)
+GUI.Form..Show
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("Main_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4281_Freight_Log.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.Main.End
+
+Program.Sub.Form_UnLoad.Start
+F.Intrinsic.Control.SetErrorHandler("cmdSave_Click_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+Function.Intrinsic.UI.CloseWaitDialog
+GUI.Form..Visible(FALSE)
+F.ODBC.Connection!con.Close
+Function.Intrinsic.Control.End
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("cmdSave_Click_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4281_Freight_Log.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.End
+
+Function.Intrinsic.Control.EndIf
+Program.Sub.Form_UnLoad.End
+
+Program.Sub.cmdSave_Click.Start
+F.Intrinsic.Control.SetErrorHandler("CreateExcel_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareDate(dBDate,dEDate, sParams, sValues)
+V.Local..BulkDeclareString(ssql,sMap)
+V.Local.iBIRUNID.Declare
+V.Local.iRptId.Declare
+V.Local.iLogID.Declare
+V.Local.iRet.Declare
+
+
+'clear the database table
+Function.ODBC.Connection!con.Execute("DELETE  FROM GCG_4281_Freight_RPT")
+'get the run ID
+F.Global.BI.GetRunID(V.Local.iBIRUNID)
+GUI.Form..Visible(FALSE)
+'set the date
+V.Local.dBDate.Set(v.Screen.Form!dtpBegDate.Value)
+V.Local.dEDate.Set(v.Screen.Form!dtpEndDate.Value)
+'F.Intrinsic.String.Build("Select cast(V_Order_Hist_Head.Date_Shipped as Char(10)) as DATE_SHIPPED,'' as StartDate, '' as EndDate, 
+'V_Order_Hist_Line.COST as Freight_COST, V_Order_Hist_Line.Price, cast(V_Order_Hist_Line.DATE_ORDER_DUE as Char(10)) as DATE_ORDER_DUE ,
+'V_Order_Hist_Head.Order_No, V_Order_Hist_Head.Name_Customer, V_Order_Hist_Head.Customer_PO, V_Order_Hist_Head.Tracking_No, cast(V_Order_Hist_Head.Date_Invoice as Char(10)) as DATE_INVOICE, 
+'V_Order_Hist_Head.Invoice From V_Order_Hist_Head Right Join V_Order_Hist_Line ON V_Order_Hist_Head.Order_No=V_Order_Hist_Line.Order_No Where V_Order_Hist_Line.Date_Shipped Between '{0}' And  '{1}' 
+'Order By V_Order_Hist_Head.Date_Shipped",  V.Local.dBDate.PervasiveDate, V.Local.dEDate.PervasiveDate, V.Local.ssql)
+'rebuild sql- takes too long
+F.Intrinsic.String.Build("Select Distinct V_Order_Hist_Line.Order_No, '' as CUSTOMER_PO,'' as Tracking_No, '' as NAME_CUSTOMER,CAST('' as Float) as Freight_COST,'' as DATE_INVOICE,V_Order_Hist_Line.SHIP_VIA as Freight_Shipped_By ,'' as Invoice,'' as StartDate,'' as EndDate  From V_Order_Hist_Line Where V_Order_Hist_Line.Date_Shipped Between '{0}' And  '{1}'  Order By V_Order_Hist_Line.Order_No",  V.Local.dBDate.PervasiveDate, V.Local.dEDate.PervasiveDate, V.Local.ssql)
+F.Data.DataTable.CreateFromSQL("T", "con",V.Local.ssql, True)
+
+
+
+'now fill the rest from dictionaries
+'V_Order_Hist_Head.Customer_PO
+'V_Order_Hist_Head.Tracking_No
+'cast(V_Order_Hist_Head.Date_Invoice as Char(10)) as DATE_INVOICE
+'V_Order_Hist_Head.Invoice
+
+'And ORDER_LINE = '8000'
+',V_Order_Hist_Line.COST as Freight_COST
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, COST as Freight_COST From V_ORDER_HIST_Line Where ORDER_LINE = '8000'")
+F.Data.Dictionary.SetDefaultReturn("dict", "0.00")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "Freight_COST")
+F.Data.Dictionary.Close("dict")
+
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, CUSTOMER_PO From V_ORDER_HIST_HEAD")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "CUSTOMER_PO")
+F.Data.Dictionary.Close("dict")
+
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, Tracking_No From V_ORDER_HIST_HEAD")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "Tracking_No")
+F.Data.Dictionary.Close("dict")
+
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, cast(V_Order_Hist_Head.Date_Invoice as Char(10)) as DATE_INVOICE From V_ORDER_HIST_HEAD")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "DATE_INVOICE")
+F.Data.Dictionary.Close("dict")
+
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, Invoice From V_ORDER_HIST_HEAD")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "Invoice")
+F.Data.Dictionary.Close("dict")
+
+F.Data.Dictionary.CreateFromSql("dict", "con","Select ORDER_NO, Name_Customer From V_ORDER_HIST_HEAD")
+F.Data.Dictionary.SetDefaultReturn("dict", "")
+F.Data.DataTable.FillFromDictionary("T","dict", "ORDER_NO", "Name_Customer")
+F.Data.Dictionary.Close("dict")
+
+'add BIRUNID
+Function.Data.DataTable.AddExpressionColumn("T", "BIRUNID", "LONG", V.Local.iBIRUNID)
+
+'add dates to columns
+Function.Data.DataTable.SetValue("T", -1, "StartDate", V.Local.dBDate)
+Function.Data.DataTable.SetValue("T", -1, "EndDate", V.Local.dEDate)
+'call sub to create excel file
+Function.Intrinsic.Control.CallSub(createexcel)
+'save the data
+
+
+
+
+
+Function.Data.DataTable.SaveToDB("T", "con", "GCG_4281_Freight_RPT", "", 128,"BIRUNID@!@BIRUNID*!*ORDER_NO@!@ORDER_NO*!*NAME_CUSTOMER@!@NAME_CUSTOMER*!*CUSTOMER_PO@!@CUSTOMER_PO*!*TRACKING_NO@!@TRACKING_NO*!*INVOICE@!@INVOICE*!*DATE_INVOICE@!@DATE_INVOICE*!*FREIGHT_COST@!@FREIGHT_COST*!*STARTDATE@!@STARTDATE*!*ENDDATE@!@ENDDATE")
+Function.Intrinsic.Debug.InvokeDebugger
+
+'get the report ID
+F.Global.BI.GetIDFromName("GCG_4281_FREIGHT.rpt",V.Local.iRptId)
+'start logging
+F.Global.BI.StartLogging(V.Local.iBIRunID,V.Local.iRptId,0,"",V.Local.iLogID)
+'Stopping logging
+F.Global.BI.StopLogging(V.local.iBIRunID)
+Function.Intrinsic.Debug.Stop
+
+'this opens in sub create excel
+Function.Intrinsic.UI.CloseWaitDialog
+F.Global.BI.RunReportPreProcessor(V.Local.iBIRunID,V.Local.iLogID,"","","",-1,True,"",-1,"",-1,"","",V.Local.iRet)
+'close table
+F.Data.DataTable.Close("T")
+
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CreateExcel_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4281_Freight_Log.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.cmdSave_Click.End
+
+Program.Sub.CreateExcel.Start
+F.Intrinsic.Control.SetErrorHandler("CreateExcel_Err")
+F.Intrinsic.Control.ClearErrors
+
+V.Local.sError.Declare(String)
+
+V.Local..BulkDeclareString(sDir, sFile,sRet,sDate, sTime)
+V.Local.bExists.Declare(Boolean)
+'check if directory exists- if not create it
+F.Intrinsic.String.Build("{0}\Freight_Log",V.Caller.FilesDir,V.Local.sDir) 
+F.Intrinsic.File.DirExists(V.Local.sDir,V.Local.bExists) 
+F.Intrinsic.Control.If(V.Local.bExists,=,False) 
+	f.Intrinsic.File.CreateDir(V.Local.sDir) 
+Function.Intrinsic.Control.EndIf
+'set date and time for file path
+F.Intrinsic.String.Format(V.Ambient.Date, "YYYYMMDD", V.Local.sDate)
+Function.Intrinsic.String.TimeStringSec(V.Ambient.Time, V.Local.sTime)
+'create file name
+F.Intrinsic.String.Build("{0}\Freight_Log_{1}{2}.xlsx",V.Local.sDir,V.Local.sDate,V.Local.sTime,V.Local.sFile)
+'show file path
+F.Intrinsic.String.Build("Saving File Location: {0}", V.Local.sFile, V.Local.sRet)
+Function.Intrinsic.UI.InvokeWaitDialog(V.Local.sRet) 
+Function.Data.DataView.Create("T", "T_VIEW")
+'Function.Data.DataView.ToString("T", "T_VIEW", "ORDER_NO*!*NAME_CUSTOMER*!*TRACKING_NO*!*INVOICE*!*DATE_INVOICE*!*FREIGHT_COST", "*!*", "$!$", V.Local.sRet)
+Function.Data.DataView.ToString("T", "T_VIEW", "ORDER_NO*!*NAME_CUSTOMER*!*CUSTOMER_PO*!*TRACKING_NO*!*FREIGHT_SHIPPED_BY*!*DATE_INVOICE*!*FREIGHT_COST*!*INVOICE", "*!*", "$!$", V.Local.sRet)
+'create titles
+F.Intrinsic.String.Build("ORDER_NO*!*NAME_CUSTOMER*!*CUSTOMER_PO*!*TRACKING_NO*!*FREIGHT_SHIPPED_BY*!*DATE_INVOICE*!*FREIGHT_COST*!*INVOICE$!${0}", V.Local.sRet, V.Local.sRet)
+'save excel
+Function.Automation.MSExcel.WriteSpreadSheet(V.Local.sFile,V.Local.sRet)
+'close dataview
+F.Data.DataView.Close("T", "T_VIEW")
+F.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Label("CreateExcel_Err")
+F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+	Function.Intrinsic.String.Concat("Project: GCG_4281_Freight_Log.g2u",V.Ambient.Newline,V.Ambient.Newline,"Subroutine: ",V.Ambient.CurrentSubroutine,V.Ambient.NewLine,"Error Occurred ",V.Ambient.ErrorNumber," with description ",V.Ambient.ErrorDescription,V.Local.sError)
+	F.Intrinsic.UI.Msgbox(V.Local.sError)
+	Function.Intrinsic.Control.CallSub(form_unload)
+Function.Intrinsic.Control.EndIf
+Program.Sub.CreateExcel.End
+
+Program.Sub.Comments.Start
+${$0$}$GCG_4281_Freight_Log.g2u$}$DH1$}$1/19/2017 11:00:37 AM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$This will be a custom GAB script that will run from a custom Menu Item under Bill of Material -> File -> Custom Cobalt BOM Import.  The user will navigate to the xml file that needs to be loaded into Global Shop.  Once the xml is parsed there will be a search in Global Shop to see if a BOM already exists for that Part Number.  If one already exists a compare screen will display showing the differences between the two.  If one does not exist then the screen will display the BOM as it will be uploaded into Global Shop.  Any parts that are listed in the BOM that are not Inventory Parts will be highlighted in Yellow.  If there are any parts not in inventory the user will have the option to click the create Parts button to generate those parts in Global Shop.  If the BOM exists in Global shop then any differences on the new import will be highlighted in Red.  After the Parts have been created then the Upload button will upload and override any previous BOM for that part.
+Program.Sub.Comments.End
